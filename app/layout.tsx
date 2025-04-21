@@ -10,7 +10,6 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Global Connect",
   description: "Connect with people around the world through an interactive map",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({

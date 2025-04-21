@@ -1,30 +1,32 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
 import type { Coordinate } from "ol/coordinate"
-import { MapPin, Navigation, X, CornerDownLeft, Clock, Route } from "lucide-react"
-import { type DirectionsResult, type RouteInfo, formatDistance, formatDuration } from "@/lib/map/directions-service"
+import { MapPin, Navigation, X, CornerDownLeft, Clock, Route, Car, FootprintsIcon as Walking, Bike } from "lucide-react"
+import { formatDistance, formatDuration } from "@/lib/map/directions-service"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
-import { searchLocations } from "@/lib/map/geocoding"
+import { LocationSearch } from "@/components/map/location-search"
+import { reverseGeocode } from "@/lib/map/nominatim-service"
+import { Skeleton } from "@/components/ui/skeleton"
+import type { User } from "@/types/user"
 
 interface DirectionsPanelProps {
   isOpen: boolean
   onClose: () => void
   onDirectionsRequest: (
-    origin: string | Coordinate,
-    destination: string | Coordinate,
+    origin: Coordinate,
+    destination: Coordinate,
     travelMode: "driving" | "walking" | "cycling",
   ) => void
-  directionsResult?: DirectionsResult
+  directionsResult?: any
   isLoading: boolean
   userLocation?: Coordinate
+  users?: User[]
 }
 
 export function DirectionsPanel({
@@ -34,109 +36,73 @@ export function DirectionsPanel({
   directionsResult,
   isLoading,
   userLocation,
+  users = [],
 }: DirectionsPanelProps) {
-  const [origin, setOrigin] = useState<string>("")
-  const [destination, setDestination] = useState<string>("")
+  const [origin, setOrigin] = useState<{ name: string; coordinates?: Coordinate }>({ name: "" })
+  const [destination, setDestination] = useState<{ name: string; coordinates?: Coordinate }>({ name: "" })
   const [travelMode, setTravelMode] = useState<"driving" | "walking" | "cycling">("driving")
-  const [activeRoute, setActiveRoute] = useState<RouteInfo | null>(null)
-
-  // Autocomplete states
-  const [originSuggestions, setOriginSuggestions] = useState<Array<{ id: string; name: string }>>([])
-  const [destinationSuggestions, setDestinationSuggestions] = useState<Array<{ id: string; name: string }>>([])
-  const [originOpen, setOriginOpen] = useState(false)
-  const [destinationOpen, setDestinationOpen] = useState(false)
-  const [originSearching, setOriginSearching] = useState(false)
-  const [destinationSearching, setDestinationSearching] = useState(false)
-
-  // Debounce timers
-  const originTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const destinationTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [userLocationName, setUserLocationName] = useState<string>("My Location")
+  const [activeRoute, setActiveRoute] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Set active route when directions result changes
   useEffect(() => {
-    if (directionsResult?.routes && directionsResult.routes.length > 0) {
+    if (directionsResult?.status === "OK" && directionsResult.routes && directionsResult.routes.length > 0) {
       setActiveRoute(directionsResult.routes[0])
+      setError(null)
+    } else if (directionsResult?.status === "ZERO_RESULTS") {
+      setActiveRoute(null)
+      setError("No route found between these locations. Please try different locations.")
+    } else if (directionsResult?.status === "ERROR") {
+      setActiveRoute(null)
+      setError(directionsResult.errorMessage || "An error occurred while calculating the route.")
     } else {
       setActiveRoute(null)
     }
   }, [directionsResult])
 
-  // Handle origin input change with debounce
-  const handleOriginChange = (value: string) => {
-    setOrigin(value)
-
-    if (originTimerRef.current) {
-      clearTimeout(originTimerRef.current)
-    }
-
-    if (value.length > 2) {
-      setOriginSearching(true)
-      originTimerRef.current = setTimeout(async () => {
+  // Get user location name
+  useEffect(() => {
+    if (userLocation) {
+      const fetchLocationName = async () => {
         try {
-          const results = await searchLocations(value)
-          setOriginSuggestions(
-            results.map((item) => ({
-              id: item.placeId || item.address,
-              name: item.address,
-            })),
-          )
+          const name = await reverseGeocode(userLocation)
+          setUserLocationName(name.split(",")[0] || "My Location")
         } catch (error) {
-          console.error("Error searching locations:", error)
-        } finally {
-          setOriginSearching(false)
+          console.error("Error getting location name:", error)
+          setUserLocationName("My Location")
         }
-      }, 300)
-    } else {
-      setOriginSuggestions([])
+      }
+      fetchLocationName()
     }
-  }
-
-  // Handle destination input change with debounce
-  const handleDestinationChange = (value: string) => {
-    setDestination(value)
-
-    if (destinationTimerRef.current) {
-      clearTimeout(destinationTimerRef.current)
-    }
-
-    if (value.length > 2) {
-      setDestinationSearching(true)
-      destinationTimerRef.current = setTimeout(async () => {
-        try {
-          const results = await searchLocations(value)
-          setDestinationSuggestions(
-            results.map((item) => ({
-              id: item.placeId || item.address,
-              name: item.address,
-            })),
-          )
-        } catch (error) {
-          console.error("Error searching locations:", error)
-        } finally {
-          setDestinationSearching(false)
-        }
-      }, 300)
-    } else {
-      setDestinationSuggestions([])
-    }
-  }
+  }, [userLocation])
 
   // Use current location
   const useCurrentLocation = () => {
     if (userLocation) {
-      setOrigin("My Location")
-      // In a real app, you would reverse geocode the coordinates to get a readable address
+      setOrigin({
+        name: userLocationName,
+        coordinates: userLocation,
+      })
     }
   }
 
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
 
-    // Use coordinates if origin is "My Location"
-    const originValue = origin === "My Location" && userLocation ? userLocation : origin
+    if (!origin.coordinates) {
+      setError("Please select a valid starting point")
+      return
+    }
 
-    onDirectionsRequest(originValue, destination, travelMode)
+    if (!destination.coordinates) {
+      setError("Please select a valid destination")
+      return
+    }
+
+    onDirectionsRequest(origin.coordinates, destination.coordinates, travelMode)
   }
 
   // Swap origin and destination
@@ -145,18 +111,6 @@ export function DirectionsPanel({
     setOrigin(destination)
     setDestination(temp)
   }
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (originTimerRef.current) {
-        clearTimeout(originTimerRef.current)
-      }
-      if (destinationTimerRef.current) {
-        clearTimeout(destinationTimerRef.current)
-      }
-    }
-  }, [])
 
   if (!isOpen) return null
 
@@ -178,33 +132,16 @@ export function DirectionsPanel({
                 <Label htmlFor="origin" className="sr-only">
                   Starting point
                 </Label>
-                <Input
-                  id="origin"
+                <LocationSearch
                   placeholder="Starting point"
-                  value={origin}
-                  onChange={(e) => handleOriginChange(e.target.value)}
-                  required
-                  className="w-full"
+                  onLocationSelect={(result) => {
+                    setOrigin({
+                      name: result.name,
+                      coordinates: result.coordinates,
+                    })
+                  }}
+                  includeUsers={true}
                 />
-                {origin.length > 2 && originSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full max-w-[300px] mt-1 bg-background border rounded-md shadow-md">
-                    <ul className="py-1">
-                      {originSuggestions.map((suggestion) => (
-                        <li
-                          key={suggestion.id}
-                          className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center gap-2"
-                          onClick={() => {
-                            setOrigin(suggestion.name)
-                            setOriginSuggestions([])
-                          }}
-                        >
-                          <MapPin className="h-4 w-4" />
-                          {suggestion.name}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
               </div>
               {userLocation && (
                 <Button
@@ -237,33 +174,16 @@ export function DirectionsPanel({
                 <Label htmlFor="destination" className="sr-only">
                   Destination
                 </Label>
-                <Input
-                  id="destination"
+                <LocationSearch
                   placeholder="Destination"
-                  value={destination}
-                  onChange={(e) => handleDestinationChange(e.target.value)}
-                  required
-                  className="w-full"
+                  onLocationSelect={(result) => {
+                    setDestination({
+                      name: result.name,
+                      coordinates: result.coordinates,
+                    })
+                  }}
+                  includeUsers={true}
                 />
-                {destination.length > 2 && destinationSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full max-w-[300px] mt-1 bg-background border rounded-md shadow-md">
-                    <ul className="py-1">
-                      {destinationSuggestions.map((suggestion) => (
-                        <li
-                          key={suggestion.id}
-                          className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center gap-2"
-                          onClick={() => {
-                            setDestination(suggestion.name)
-                            setDestinationSuggestions([])
-                          }}
-                        >
-                          <MapPin className="h-4 w-4" />
-                          {suggestion.name}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -275,49 +195,93 @@ export function DirectionsPanel({
               onValueChange={(value) => setTravelMode(value as "driving" | "walking" | "cycling")}
               className="flex space-x-2"
             >
-              <div className="flex items-center space-x-1">
-                <RadioGroupItem value="driving" id="driving" />
-                <Label htmlFor="driving" className="cursor-pointer">
-                  Driving
+              <div className="flex flex-1 items-center justify-center">
+                <RadioGroupItem value="driving" id="driving" className="sr-only" />
+                <Label
+                  htmlFor="driving"
+                  className={cn(
+                    "flex flex-col items-center justify-center w-full p-2 rounded-md cursor-pointer border",
+                    travelMode === "driving" ? "bg-primary/10 border-primary" : "hover:bg-accent",
+                  )}
+                >
+                  <Car className={cn("h-5 w-5", travelMode === "driving" ? "text-primary" : "text-muted-foreground")} />
+                  <span className="text-xs mt-1">Driving</span>
                 </Label>
               </div>
-              <div className="flex items-center space-x-1">
-                <RadioGroupItem value="walking" id="walking" />
-                <Label htmlFor="walking" className="cursor-pointer">
-                  Walking
+              <div className="flex flex-1 items-center justify-center">
+                <RadioGroupItem value="walking" id="walking" className="sr-only" />
+                <Label
+                  htmlFor="walking"
+                  className={cn(
+                    "flex flex-col items-center justify-center w-full p-2 rounded-md cursor-pointer border",
+                    travelMode === "walking" ? "bg-primary/10 border-primary" : "hover:bg-accent",
+                  )}
+                >
+                  <Walking
+                    className={cn("h-5 w-5", travelMode === "walking" ? "text-primary" : "text-muted-foreground")}
+                  />
+                  <span className="text-xs mt-1">Walking</span>
                 </Label>
               </div>
-              <div className="flex items-center space-x-1">
-                <RadioGroupItem value="cycling" id="cycling" />
-                <Label htmlFor="cycling" className="cursor-pointer">
-                  Cycling
+              <div className="flex flex-1 items-center justify-center">
+                <RadioGroupItem value="cycling" id="cycling" className="sr-only" />
+                <Label
+                  htmlFor="cycling"
+                  className={cn(
+                    "flex flex-col items-center justify-center w-full p-2 rounded-md cursor-pointer border",
+                    travelMode === "cycling" ? "bg-primary/10 border-primary" : "hover:bg-accent",
+                  )}
+                >
+                  <Bike
+                    className={cn("h-5 w-5", travelMode === "cycling" ? "text-primary" : "text-muted-foreground")}
+                  />
+                  <span className="text-xs mt-1">Cycling</span>
                 </Label>
               </div>
             </RadioGroup>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          {error && (
+            <div className="p-3 text-sm bg-destructive/10 border border-destructive/20 text-destructive rounded-md">
+              {error}
+            </div>
+          )}
+
+          <Button type="submit" className="w-full" disabled={isLoading || !origin.name || !destination.name}>
             {isLoading ? "Getting directions..." : "Get Directions"}
           </Button>
         </form>
       </div>
 
-      {directionsResult?.status === "ZERO_RESULTS" && (
-        <div className="p-4 text-center text-muted-foreground">No routes found. Please try different locations.</div>
-      )}
-
-      {directionsResult?.status === "ERROR" && (
-        <div className="p-4 text-center text-destructive">
-          Error getting directions: {directionsResult.errorMessage || "Unknown error"}
+      {isLoading && (
+        <div className="flex-1 p-4 space-y-4">
+          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-md">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <div className="space-y-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <Skeleton className="h-6 w-6 rounded-full" />
+                  {i < 3 && <Skeleton className="w-0.5 h-16 mt-1" />}
+                </div>
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {activeRoute && (
+      {activeRoute && !isLoading && (
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between p-4 bg-muted/50">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">{formatDuration(activeRoute.duration)}</span>
+              <span className="font-medium">{formatDuration(activeRoute.duration / 60)}</span>
             </div>
             <div className="flex items-center gap-2">
               <Route className="h-4 w-4 text-muted-foreground" />
@@ -327,7 +291,7 @@ export function DirectionsPanel({
 
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-4">
-              {activeRoute.instructions.map((instruction, index) => (
+              {activeRoute.instructions.map((instruction: any, index: number) => (
                 <div key={index} className="flex gap-4">
                   <div className="flex flex-col items-center">
                     <div
@@ -350,8 +314,12 @@ export function DirectionsPanel({
                     <p className="font-medium">{instruction.text}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{formatDistance(instruction.distance)}</span>
-                      <span>•</span>
-                      <span>{formatDuration(instruction.duration)}</span>
+                      {instruction.duration > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>{formatDuration(instruction.duration / 60)}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

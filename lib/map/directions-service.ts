@@ -3,6 +3,7 @@ import { fromLonLat, toLonLat } from "ol/proj"
 import { LineString } from "ol/geom"
 import { Feature } from "ol"
 import { Style, Stroke } from "ol/style"
+import { decode } from "@/lib/map/polyline"
 
 // Interface for route information
 export interface RouteInfo {
@@ -32,19 +33,84 @@ export interface DirectionsResult {
   errorMessage?: string
 }
 
-// Get directions between two points
+// Get directions between two points using OSRM
 export async function getDirections(request: DirectionsRequest): Promise<DirectionsResult> {
   try {
     // Convert coordinates from EPSG:3857 (Web Mercator) to EPSG:4326 (WGS84)
     const originLonLat = toLonLat(request.origin)
     const destinationLonLat = toLonLat(request.destination)
 
-    // In a real app, you would make an API call to a routing service here
-    // For demo purposes, we'll create a more realistic route with waypoints
-    const route = createEnhancedRoute(originLonLat, destinationLonLat, request.travelMode)
+    // Use OSRM for routing
+    const profile = request.travelMode === "driving" ? "car" : request.travelMode === "cycling" ? "bike" : "foot"
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${originLonLat[0]},${originLonLat[1]};${destinationLonLat[0]},${destinationLonLat[1]}?overview=full&geometries=polyline&steps=true`
+
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      throw new Error(`OSRM API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (data.code !== "Ok" || !data.routes || data.routes.length === 0) {
+      return {
+        routes: [],
+        status: "ZERO_RESULTS",
+      }
+    }
+
+    // Process the route data
+    const route = data.routes[0]
+    const decodedGeometry = decode(route.geometry)
+    const coordinates = decodedGeometry.map((point) => fromLonLat([point[1], point[0]]))
+
+    // Create a LineString geometry for the route
+    const routeGeometry = new LineString(coordinates)
+
+    // Create instructions from steps
+    const instructions: RouteInstruction[] = []
+
+    // Add start instruction
+    instructions.push({
+      text: "Start",
+      distance: 0,
+      duration: 0,
+      maneuver: "start",
+    })
+
+    // Process legs and steps
+    if (route.legs && route.legs.length > 0) {
+      route.legs.forEach((leg) => {
+        if (leg.steps) {
+          leg.steps.forEach((step) => {
+            instructions.push({
+              text: step.maneuver?.instruction || "Continue",
+              distance: step.distance,
+              duration: step.duration,
+              maneuver: step.maneuver?.type,
+            })
+          })
+        }
+      })
+    }
+
+    // Add end instruction
+    instructions.push({
+      text: "Arrive at destination",
+      distance: 0,
+      duration: 0,
+      maneuver: "arrive",
+    })
+
+    const routeInfo: RouteInfo = {
+      distance: route.distance,
+      duration: route.duration,
+      instructions,
+      geometry: routeGeometry,
+    }
 
     return {
-      routes: [route],
+      routes: [routeInfo],
       status: "OK",
     }
   } catch (error) {
@@ -55,157 +121,6 @@ export async function getDirections(request: DirectionsRequest): Promise<Directi
       errorMessage: error instanceof Error ? error.message : "Unknown error",
     }
   }
-}
-
-// Create a more realistic route with waypoints
-function createEnhancedRoute(
-  origin: [number, number],
-  destination: [number, number],
-  travelMode: "driving" | "walking" | "cycling" = "driving",
-): RouteInfo {
-  // Calculate distance between points (haversine formula)
-  const distance = calculateDistance(origin, destination)
-
-  // Estimate duration based on travel mode and distance
-  let speed: number
-  switch (travelMode) {
-    case "walking":
-      speed = 5 // km/h
-      break
-    case "cycling":
-      speed = 15 // km/h
-      break
-    case "driving":
-    default:
-      speed = 50 // km/h
-      break
-  }
-
-  const duration = (distance / speed) * 60 // minutes
-
-  // Create a route with realistic waypoints
-  // For a straight line, we'd just need origin and destination
-  // For a more realistic route, we'll add some intermediate points with slight deviations
-  const numPoints = Math.max(5, Math.ceil(distance / 3)) // At least 5 points, more for longer distances
-  const coordinates: Coordinate[] = []
-
-  // Add origin
-  coordinates.push(fromLonLat(origin))
-
-  // Add intermediate points with some randomness to simulate real roads
-  for (let i = 1; i < numPoints - 1; i++) {
-    const fraction = i / (numPoints - 1)
-    // Base point on the straight line
-    const lat = origin[1] + fraction * (destination[1] - origin[1])
-    const lon = origin[0] + fraction * (destination[0] - origin[0])
-
-    // Add some randomness to simulate roads (more for driving, less for walking)
-    const deviation = travelMode === "driving" ? 0.01 : 0.005
-    const randomLat = lat + (Math.random() - 0.5) * deviation
-    const randomLon = lon + (Math.random() - 0.5) * deviation
-
-    coordinates.push(fromLonLat([randomLon, randomLat]))
-  }
-
-  // Add destination
-  coordinates.push(fromLonLat(destination))
-
-  // Create route geometry
-  const geometry = new LineString(coordinates)
-
-  // Create instructions based on the route
-  const instructions: RouteInstruction[] = generateInstructions(coordinates, distance, duration, travelMode)
-
-  return {
-    distance,
-    duration,
-    instructions,
-    geometry,
-  }
-}
-
-// Generate realistic turn-by-turn instructions
-function generateInstructions(
-  coordinates: Coordinate[],
-  totalDistance: number,
-  totalDuration: number,
-  travelMode: "driving" | "walking" | "cycling",
-): RouteInstruction[] {
-  const instructions: RouteInstruction[] = []
-  const numSegments = coordinates.length - 1
-
-  // Start instruction
-  instructions.push({
-    text: `Start ${travelMode === "driving" ? "driving" : travelMode === "walking" ? "walking" : "cycling"} toward your destination`,
-    distance: 0,
-    duration: 0,
-    maneuver: "start",
-  })
-
-  // Intermediate instructions
-  let distanceCovered = 0
-  let durationCovered = 0
-
-  for (let i = 1; i < numSegments; i++) {
-    const segmentDistance = totalDistance * (1 / numSegments)
-    const segmentDuration = totalDuration * (1 / numSegments)
-
-    distanceCovered += segmentDistance
-    durationCovered += segmentDuration
-
-    // Generate a random instruction based on the segment
-    const instructionType = Math.floor(Math.random() * 4)
-    let text = ""
-
-    switch (instructionType) {
-      case 0:
-        text = "Continue straight ahead"
-        break
-      case 1:
-        text = "Turn right onto the next street"
-        break
-      case 2:
-        text = "Turn left at the intersection"
-        break
-      case 3:
-        text = "Slight right at the fork"
-        break
-      default:
-        text = "Continue on your route"
-    }
-
-    instructions.push({
-      text,
-      distance: segmentDistance,
-      duration: segmentDuration,
-      maneuver: ["straight", "right", "left", "slight-right"][instructionType],
-    })
-  }
-
-  // Final instruction
-  instructions.push({
-    text: "Arrive at your destination",
-    distance: totalDistance - distanceCovered,
-    duration: totalDuration - durationCovered,
-    maneuver: "arrive",
-  })
-
-  return instructions
-}
-
-// Calculate distance between two points using the haversine formula
-function calculateDistance(point1: [number, number], point2: [number, number]): number {
-  const R = 6371 // Earth's radius in km
-  const dLat = ((point2[1] - point1[1]) * Math.PI) / 180
-  const dLon = ((point2[0] - point1[0]) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((point1[1] * Math.PI) / 180) *
-      Math.cos((point2[1] * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
 }
 
 // Create a route feature with styling
@@ -230,10 +145,10 @@ export function createRouteFeature(route: RouteInfo): Feature {
 
 // Format distance for display
 export function formatDistance(distance: number): string {
-  if (distance < 1) {
-    return `${Math.round(distance * 1000)} m`
+  if (distance < 1000) {
+    return `${Math.round(distance)} m`
   }
-  return `${distance.toFixed(1)} km`
+  return `${(distance / 1000).toFixed(1)} km`
 }
 
 // Format duration for display
