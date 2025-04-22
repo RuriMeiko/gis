@@ -1,36 +1,42 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { LocationSearch } from "./location-search"
+import { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { LocationSearch } from "./location-search";
 
 interface ExploreFiltersProps {
   onFilterChange?: (filters: {
-    distance?: number
-    gender?: string
-    ageRange?: [number, number]
-    location?: string
-    centerCoordinates?: any
-  }) => void
+    distance?: number;
+    gender?: string;
+    ageRange?: [number, number];
+    location?: string;
+    centerCoordinates?: any;
+  }) => void;
 }
 
 export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
-  const [distance, setDistance] = useState([50])
-  const [gender, setGender] = useState("")
-  const [ageRange, setAgeRange] = useState<[number, number]>([18, 30])
-  const [location, setLocation] = useState("")
-  const [centerLocation, setCenterLocation] = useState<any>(null)
-  const [isDirty, setIsDirty] = useState(false)
-  const initialLoadDone = useRef(false)
+  const [distance, setDistance] = useState([50]);
+  const [gender, setGender] = useState("");
+  const [ageRange, setAgeRange] = useState<[number, number]>([18, 30]);
+  const [location, setLocation] = useState("");
+  const [centerLocation, setCenterLocation] = useState<any>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const initialLoadDone = useRef(false);
 
   const handleLocationSelect = (result: any) => {
-    setLocation(result.name)
-    setCenterLocation(result)
-    setIsDirty(true)
-  }
+    setLocation(result.name);
+    setCenterLocation(result);
+    setIsDirty(true);
+  };
 
   const handleApplyFilters = () => {
     if (onFilterChange) {
@@ -40,10 +46,10 @@ export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
         ageRange,
         location: location || undefined,
         centerCoordinates: centerLocation?.coordinates,
-      })
+      });
     }
-    setIsDirty(false)
-  }
+    setIsDirty(false);
+  };
 
   // Modify the useEffect to only apply filters when explicitly requested
   useEffect(() => {
@@ -60,7 +66,7 @@ export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
       <h2 className="text-lg font-semibold mb-4">Filter Users</h2>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Khoảng cách */}
-        <div className="space-y-2">
+        {/* <div className="space-y-2">
           <Label htmlFor="distance">Distance (km)</Label>
           <div className="flex items-center gap-4">
             <Slider
@@ -75,12 +81,18 @@ export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
             />
             <span className="w-12 text-center font-medium">{distance[0]}</span>
           </div>
-        </div>
+        </div> */}
 
         {/* Giới tính */}
         <div className="space-y-2">
           <Label htmlFor="gender">Gender</Label>
-          <Select value={gender} onValueChange={(value) => { setGender(value); setIsDirty(true) }}>
+          <Select
+            value={gender}
+            onValueChange={(value) => {
+              setGender(value);
+              setIsDirty(true);
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select gender" />
             </SelectTrigger>
@@ -103,8 +115,8 @@ export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
               step={1}
               value={ageRange}
               onValueChange={(value) => {
-                setAgeRange(value as [number, number])
-                setIsDirty(true)
+                setAgeRange(value as [number, number]);
+                setIsDirty(true);
               }}
             />
             <span className="w-24 text-center font-medium">
@@ -113,15 +125,17 @@ export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
           </div>
         </div>
 
-        
-
         {/* Nút áp dụng */}
         <div className="flex items-end">
-          <Button className="w-full" onClick={handleApplyFilters} disabled={!isDirty}>
+          <Button
+            className="w-full"
+            onClick={handleApplyFilters}
+            disabled={!isDirty}
+          >
             Apply Filters
           </Button>
         </div>
       </div>
     </div>
-  )
+  );
 }

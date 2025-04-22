@@ -1,6 +1,7 @@
-import { SettingsForm } from "@/components/settings/settings-form"
-import { PrivacySettings } from "@/components/settings/privacy-settings"
-import { NotificationSettings } from "@/components/settings/notification-settings"
+import { SettingsForm } from "@/components/settings/settings-form";
+import { PrivacySettings } from "@/components/settings/privacy-settings";
+import { NotificationSettings } from "@/components/settings/notification-settings";
+import { UISettings } from "@/components/settings/ui-settings";
 
 export default function SettingsPage() {
   return (
@@ -12,7 +13,8 @@ export default function SettingsPage() {
         <SettingsForm />
         <PrivacySettings />
         <NotificationSettings />
+        <UISettings />
       </div>
     </div>
-  )
+  );
 }
