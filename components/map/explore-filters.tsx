@@ -32,6 +32,13 @@ export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
   const [isDirty, setIsDirty] = useState(false);
   const initialLoadDone = useRef(false);
 
+  // useEffect(() => {
+  //   if (isDirty) {
+  //     handleApplyFilters();
+  //   }
+  //   console.log(ageRange);
+  // }, [isDirty]);
+
   const handleLocationSelect = (result: any) => {
     setLocation(result.name);
     setCenterLocation(result);
