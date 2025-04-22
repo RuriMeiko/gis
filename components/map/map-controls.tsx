@@ -1,18 +1,35 @@
-"use client"
+"use client";
 
-import { Button } from "@/components/ui/button"
-import { ZoomIn, ZoomOut, Locate, Layers, Navigation, MapIcon } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type Map from "ol/Map"
-import type { Coordinate } from "ol/coordinate"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button";
+import {
+  ZoomIn,
+  ZoomOut,
+  Locate,
+  Layers,
+  Navigation,
+  MapIcon,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type Map from "ol/Map";
+import type { Coordinate } from "ol/coordinate";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MapControlsProps {
-  map: Map | null
-  onToggleDirections?: () => void
-  directionsActive?: boolean
-  onToggleMapType?: () => void
-  userLocation?: Coordinate
+  map: Map | null;
+  onToggleDirections?: () => void;
+  directionsActive?: boolean;
+  onToggleMapType?: () => void;
+  userLocation?: Coordinate;
 }
 
 export function MapControls({
@@ -23,42 +40,47 @@ export function MapControls({
   userLocation,
 }: MapControlsProps) {
   const handleZoomIn = () => {
-    if (!map) return
-    const view = map.getView()
-    const zoom = view.getZoom() || 0
+    if (!map) return;
+    const view = map.getView();
+    const zoom = view.getZoom() || 0;
     view.animate({
       zoom: zoom + 1,
       duration: 250,
-    })
-  }
+    });
+  };
 
   const handleZoomOut = () => {
-    if (!map) return
-    const view = map.getView()
-    const zoom = view.getZoom() || 0
+    if (!map) return;
+    const view = map.getView();
+    const zoom = view.getZoom() || 0;
     view.animate({
       zoom: Math.max(1, zoom - 1),
       duration: 250,
-    })
-  }
+    });
+  };
 
   const handleLocate = () => {
-    if (!map || !userLocation) return
+    if (!map || !userLocation) return;
 
-    const view = map.getView()
+    const view = map.getView();
     view.animate({
       center: userLocation,
       zoom: 14,
       duration: 500,
-    })
-  }
+    });
+  };
 
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex flex-col gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="secondary" size="icon" onClick={handleZoomIn} className="shadow-md">
+            <Button
+              variant="secondary"
+              size="icon"
+              onClick={handleZoomIn}
+              className="shadow-md"
+            >
               <ZoomIn className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -67,7 +89,12 @@ export function MapControls({
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="secondary" size="icon" onClick={handleZoomOut} className="shadow-md">
+            <Button
+              variant="secondary"
+              size="icon"
+              onClick={handleZoomOut}
+              className="shadow-md"
+            >
               <ZoomOut className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -86,7 +113,9 @@ export function MapControls({
               <Locate className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="left">{userLocation ? "My location" : "Location unavailable"}</TooltipContent>
+          <TooltipContent side="left">
+            {userLocation ? "My location" : "Location unavailable"}
+          </TooltipContent>
         </Tooltip>
 
         {onToggleDirections && (
@@ -108,7 +137,12 @@ export function MapControls({
         {onToggleMapType && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="secondary" size="icon" onClick={onToggleMapType} className="shadow-md">
+              <Button
+                variant="secondary"
+                size="icon"
+                onClick={onToggleMapType}
+                className="shadow-md"
+              >
                 <MapIcon className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -116,7 +150,7 @@ export function MapControls({
           </Tooltip>
         )}
 
-        <DropdownMenu>
+        {/* <DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
@@ -132,8 +166,8 @@ export function MapControls({
             <DropdownMenuItem>Satellite</DropdownMenuItem>
             <DropdownMenuItem>Terrain</DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenu> */}
       </div>
     </TooltipProvider>
-  )
+  );
 }

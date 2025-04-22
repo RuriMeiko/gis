@@ -1,25 +1,41 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Globe, Menu, X } from "lucide-react"
-import { useState } from "react"
-import { UserNav } from "@/components/dashboard/user-nav"
-import { usePathname } from "next/navigation"
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Globe, Menu, X } from "lucide-react";
+import { useState } from "react";
+import { UserNav } from "@/components/dashboard/user-nav";
+import { usePathname } from "next/navigation";
 
 export function DashboardHeader() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const pathname = usePathname()
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   const routes = [
-    { href: "/dashboard", label: "Dashboard", active: pathname === "/dashboard" },
-    { href: "/dashboard/explore", label: "Explore", active: pathname === "/dashboard/explore" },
-    { href: "/dashboard/messages", label: "Messages", active: pathname === "/dashboard/messages" },
-    { href: "/dashboard/profile", label: "Profile", active: pathname === "/dashboard/profile" },
-  ]
+    {
+      href: "/dashboard",
+      label: "Dashboard",
+      active: pathname === "/dashboard",
+    },
+    {
+      href: "/dashboard/explore",
+      label: "Explore",
+      active: pathname === "/dashboard/explore",
+    },
+    {
+      href: "/dashboard/messages",
+      label: "Messages",
+      active: pathname === "/dashboard/messages",
+    },
+    {
+      href: "/dashboard/profile",
+      label: "Profile",
+      active: pathname === "/dashboard/profile",
+    },
+  ];
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background">
+    <header className="sticky top-0 z-50 border-b bg-background px-10">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-2">
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -42,8 +58,17 @@ export function DashboardHeader() {
         </nav>
         <div className="flex items-center gap-4">
           <UserNav />
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-            {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            {isMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
           </Button>
         </div>
       </div>
@@ -66,5 +91,5 @@ export function DashboardHeader() {
         </div>
       )}
     </header>
-  )
+  );
 }
