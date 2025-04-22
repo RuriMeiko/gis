@@ -10,7 +10,7 @@ export default function DashboardPage() {
       </div>
       <DatabaseConnectionTest />
       <UserStats />
-      <div className="h-[500px] rounded-lg border overflow-hidden">
+      <div className="h-[1000px] rounded-lg border overflow-hidden">
         <EnhancedMap
           initialCenter={[-74.006, 40.7128]}
           initialZoom={12}

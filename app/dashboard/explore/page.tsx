@@ -61,7 +61,7 @@ export default function ExplorePage() {
         <h1 className="text-3xl font-bold">Explore</h1>
       </div>
       <ExploreFilters onFilterChange={handleFilterChange} />
-      <div className="h-[600px] rounded-lg border overflow-hidden">
+      <div className="h-[1000px] rounded-lg border overflow-hidden">
         <EnhancedMap
           key={mapKey}
           showDirections={true}

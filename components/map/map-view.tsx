@@ -117,7 +117,7 @@ export function MapView() {
   return (
     <div className="relative h-full w-full">
       <div ref={mapRef} className="h-full w-full" />
-      <div className="absolute top-4 left-4 z-10">
+      <div className="absolute top-4 left-4 z-10 h-[1000px]">
         <MapSearch />
       </div>
       <div className="absolute bottom-4 right-4 z-10">

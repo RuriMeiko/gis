@@ -336,7 +336,7 @@ export function EnhancedMap({
     return () => {
       map.setTarget(undefined)
     }
-  }, [initialCenter, initialZoom, createUserLocationMarker, mapType])
+  }, [ createUserLocationMarker, mapType])
 
   // Update users layer when users change
   useEffect(() => {
@@ -620,7 +620,7 @@ export function EnhancedMap({
 
     // Center the map on the selected location
     mapInstanceRef.current.getView().animate({
-      center: result.coordinates,
+      center: fromLonLat(result.coordinates),
       zoom: 14,
       duration: 500,
     })
@@ -711,26 +711,44 @@ export function EnhancedMap({
       {/* Improved popup for user information */}
       <div
         ref={popupRef}
-        className="absolute z-20 bg-white rounded-lg shadow-lg max-w-xs invisible"
+        className="absolute z-20 bg-white rounded-lg shadow-lg w-[400px] invisible"
         style={{ visibility: selectedUser ? "visible" : "hidden" }}
       >
         {selectedUser && (
           <Card className="border-0 shadow-none">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-3 mb-2">
-                <Avatar className="h-10 w-10">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4 mb-3">
+                <Avatar className="h-16 w-16">
                   <AvatarImage src={selectedUser.avatar || "/placeholder.svg"} alt={selectedUser.name} />
                   <AvatarFallback>{selectedUser.name[0]}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="font-bold">{selectedUser.name}</h3>
+                  <h3 className="text-lg font-bold">{selectedUser.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedUser.gender && `${selectedUser.gender.charAt(0).toUpperCase() + selectedUser.gender.slice(1)}`}
+                    {selectedUser.age && selectedUser.gender && ', '}
+                    {selectedUser.age && `${selectedUser.age} years old`}
+                  </p>
                   {selectedUser.interests && (
-                    <p className="text-xs text-muted-foreground">{selectedUser.interests.join(", ")}</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedUser.interests.map((interest, index) => (
+                        <span key={index} className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+                          {interest}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 mt-3">
+              {selectedUser.bio && (
+                <div className="mb-3">
+                  <h4 className="text-sm font-semibold mb-1">About</h4>
+                  <p className="text-sm text-muted-foreground">{selectedUser.bio}</p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 mt-4">
                 <Button
                   size="sm"
                   variant="outline"
@@ -738,7 +756,7 @@ export function EnhancedMap({
                   onClick={() => viewProfile(selectedUser.id)}
                 >
                   <MapPin className="mr-2 h-4 w-4" />
-                  View Profile
+                  View Full Profile
                 </Button>
 
                 <Button
