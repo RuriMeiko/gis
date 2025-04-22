@@ -2,25 +2,45 @@
 
 import { registerUser, loginUser, logoutUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import bcrypt from "bcrypt"
 
 // Update the registerAction function to accept location data
-export async function registerAction(data: { 
-  name: string; 
-  email: string; 
+interface RegisterData {
+  name: string;
+  email: string;
   password: string;
-  location?: { lat: number; lon: number };
-}) {
+  gender: string;
+  age: number;
+  location?: {
+    lat: number;
+    lon: number;
+  };
+}
+
+export async function registerAction(data: RegisterData) {
   try {
-    const { name, email, password, location } = data
+    const { name, email, password, location ,age, gender} = data
     
     // Call the registerUser function with location data
-    const userId = await registerUser(name, email, password, location)
+    const userId = await registerUser(name, email, password, location , age, gender)
     
     return { success: true, userId }
   } catch (error) {
     console.error("Registration action error:", error)
     throw error
   }
+
+  // Create the user in the database
+  const user = await db.insert(users).values({
+    name: data.name,
+    email: data.email,
+    password: await bcrypt.hash(data.password, 10),
+    gender: data.gender,
+    age: data.age,
+    lat: data.location?.lat,
+    lon: data.location?.lon,
+    // ... other fields ...
+  }).returning();
 }
 
 export async function loginAction({

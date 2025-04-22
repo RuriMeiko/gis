@@ -101,7 +101,9 @@ export async function registerUser(
   name: string, 
   email: string, 
   password: string, 
-  location?: { lat: number; lon: number; locationName?: string }
+  location?: { lat: number; lon: number; locationName?: string },
+  age: number,
+  gender: string,
 ) {
   try {
     // Check if user already exists
@@ -120,8 +122,8 @@ export async function registerUser(
     try {
       // Create the user
       const userResult = await sql`
-        INSERT INTO users (name, email, password_hash) 
-        VALUES (${name}, ${email}, ${passwordHash}) 
+        INSERT INTO users (name, email, password_hash, age, gender) 
+        VALUES (${name}, ${email}, ${passwordHash} , ${age}, ${gender}) 
         RETURNING id
       `
       

@@ -12,6 +12,7 @@ import { registerAction } from "@/app/actions/auth-actions"
 import { useToast } from "@/hooks/use-toast"
 import { LocationPicker } from "@/components/auth/location-picker"
 import { Separator } from "@/components/ui/separator"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const formSchema = z
   .object({
@@ -25,6 +26,12 @@ const formSchema = z
       message: "Password must be at least 8 characters.",
     }),
     confirmPassword: z.string(),
+    gender: z.string({
+      required_error: "Please select a gender.",
+    }),
+    age: z.coerce.number().min(18, {
+      message: "You must be at least 18 years old.",
+    }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match.",
@@ -44,6 +51,8 @@ export function RegisterForm() {
       email: "",
       password: "",
       confirmPassword: "",
+      gender: "",
+      age: undefined,
     },
   })
 
@@ -58,6 +67,8 @@ export function RegisterForm() {
         name: values.name,
         email: values.email,
         password: values.password,
+        gender: values.gender,
+        age: values.age,
         location: userLocation || undefined,
       })
 
@@ -107,6 +118,55 @@ export function RegisterForm() {
             </FormItem>
           )}
         />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="gender"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gender</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="age"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Age (18+)</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    min={18}
+                    placeholder="Enter your age" 
+                    {...field}
+                    onChange={(e) => {
+                      const value = e.target.value === "" ? undefined : parseInt(e.target.value, 10);
+                      field.onChange(value);
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
         <FormField
           control={form.control}
           name="password"
