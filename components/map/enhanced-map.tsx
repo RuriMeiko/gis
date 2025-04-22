@@ -471,7 +471,7 @@ export function EnhancedMap({
                 rateLimited = true;
                 console.warn("Rate limit exceeded. Waiting before retry...");
                 // Wait longer for rate limit errors
-                await new Promise((resolve) => setTimeout(resolve, 5000));
+                await new Promise((resolve) => setTimeout(resolve, 1000));
               }
 
               attempts++;
@@ -530,7 +530,7 @@ export function EnhancedMap({
               gender,
               ageRange,
             );
-            validUsers = mockUsers;
+            validUsers = [];
           }
 
           setUsers(validUsers);
@@ -556,7 +556,7 @@ export function EnhancedMap({
               gender,
               ageRange,
             );
-            setUsers(mockUsers);
+            setUsers([]);
 
             if (onUsersLoaded) {
               onUsersLoaded(mockUsers);
