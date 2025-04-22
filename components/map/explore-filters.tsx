@@ -1,101 +1,34 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { X } from "lucide-react"
+import { LocationSearch } from "./location-search"
 
 interface ExploreFiltersProps {
   onFilterChange?: (filters: {
     distance?: number
-    interests?: string[]
+    gender?: string
+    ageRange?: [number, number]
     location?: string
+    centerCoordinates?: any
   }) => void
 }
 
 export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
   const [distance, setDistance] = useState([50])
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([])
-  const [interest, setInterest] = useState("")
+  const [gender, setGender] = useState("")
+  const [ageRange, setAgeRange] = useState<[number, number]>([18, 30])
   const [location, setLocation] = useState("")
+  const [centerLocation, setCenterLocation] = useState<any>(null)
   const [isDirty, setIsDirty] = useState(false)
-  const [availableInterests, setAvailableInterests] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const initialLoadDone = useRef(false)
 
-  // Fetch available interests from the database
-  useEffect(() => {
-    const fetchInterests = async () => {
-      try {
-        setIsLoading(true)
-        console.log("Fetching interests from API...")
-        // Get unique interests from user_interests table
-        const response = await fetch("/api/interests")
-
-        if (!response.ok) {
-          throw new Error(`Error fetching interests: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-        console.log("Interests API response:", data)
-
-        // Check if data.interests exists before using it
-        if (data && Array.isArray(data.interests)) {
-          setAvailableInterests(data.interests)
-        } else {
-          console.warn("API response doesn't contain interests array:", data)
-          // Fallback to default interests
-          setAvailableInterests([
-            "Travel",
-            "Photography",
-            "Music",
-            "Art",
-            "Technology",
-            "Sports",
-            "Gaming",
-            "Cooking",
-            "Reading",
-            "Hiking",
-          ])
-        }
-      } catch (error) {
-        console.error("Error fetching interests:", error)
-        // Fallback to default interests if API fails
-        setAvailableInterests([
-          "Travel",
-          "Photography",
-          "Music",
-          "Art",
-          "Technology",
-          "Sports",
-          "Gaming",
-          "Cooking",
-          "Reading",
-          "Hiking",
-        ])
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchInterests()
-  }, [])
-
-  const addInterest = (value: string) => {
-    if (value && !selectedInterests.includes(value)) {
-      const newInterests = [...selectedInterests, value]
-      setSelectedInterests(newInterests)
-      setInterest("")
-      setIsDirty(true)
-    }
-  }
-
-  const removeInterest = (value: string) => {
-    const newInterests = selectedInterests.filter((i) => i !== value)
-    setSelectedInterests(newInterests)
+  const handleLocationSelect = (result: any) => {
+    setLocation(result.name)
+    setCenterLocation(result)
     setIsDirty(true)
   }
 
@@ -103,23 +36,30 @@ export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
     if (onFilterChange) {
       onFilterChange({
         distance: distance[0],
-        interests: selectedInterests.length > 0 ? selectedInterests : undefined,
+        gender: gender || undefined,
+        ageRange,
         location: location || undefined,
+        centerCoordinates: centerLocation?.coordinates,
       })
     }
     setIsDirty(false)
   }
 
-  // Apply filters when component mounts to initialize the map
+  // Modify the useEffect to only apply filters when explicitly requested
   useEffect(() => {
-    handleApplyFilters()
+    // Only apply filters on initial mount once
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      handleApplyFilters();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []);
 
   return (
     <div className="rounded-lg border bg-card p-6">
       <h2 className="text-lg font-semibold mb-4">Filter Users</h2>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {/* Khoảng cách */}
         <div className="space-y-2">
           <Label htmlFor="distance">Distance (km)</Label>
           <div className="flex items-center gap-4">
@@ -136,41 +76,46 @@ export function ExploreFilters({ onFilterChange }: ExploreFiltersProps) {
             <span className="w-12 text-center font-medium">{distance[0]}</span>
           </div>
         </div>
+
+        {/* Giới tính */}
         <div className="space-y-2">
-          <Label>Interests</Label>
-          <Select value={interest} onValueChange={(value) => addInterest(value)} disabled={isLoading}>
+          <Label htmlFor="gender">Gender</Label>
+          <Select value={gender} onValueChange={(value) => { setGender(value); setIsDirty(true) }}>
             <SelectTrigger>
-              <SelectValue placeholder={isLoading ? "Loading interests..." : "Select interest"} />
+              <SelectValue placeholder="Select gender" />
             </SelectTrigger>
             <SelectContent>
-              {availableInterests.map((i) => (
-                <SelectItem key={i} value={i} disabled={selectedInterests.includes(i)}>
-                  {i}
-                </SelectItem>
-              ))}
+              <SelectItem value="male">Nam</SelectItem>
+              <SelectItem value="female">Nữ</SelectItem>
+              <SelectItem value="other">Khác</SelectItem>
             </SelectContent>
           </Select>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {selectedInterests.map((i) => (
-              <Badge key={i} variant="secondary" className="gap-1">
-                {i}
-                <X className="h-3 w-3 cursor-pointer" onClick={() => removeInterest(i)} />
-              </Badge>
-            ))}
+        </div>
+
+        {/* Độ tuổi */}
+        <div className="space-y-2">
+          <Label htmlFor="age">Age Range</Label>
+          <div className="flex items-center gap-4">
+            <Slider
+              id="age"
+              min={18}
+              max={80}
+              step={1}
+              value={ageRange}
+              onValueChange={(value) => {
+                setAgeRange(value as [number, number])
+                setIsDirty(true)
+              }}
+            />
+            <span className="w-24 text-center font-medium">
+              {ageRange[0]} - {ageRange[1]}
+            </span>
           </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="location">Location</Label>
-          <Input
-            id="location"
-            placeholder="Enter a location"
-            value={location}
-            onChange={(e) => {
-              setLocation(e.target.value)
-              setIsDirty(true)
-            }}
-          />
-        </div>
+
+        
+
+        {/* Nút áp dụng */}
         <div className="flex items-end">
           <Button className="w-full" onClick={handleApplyFilters} disabled={!isDirty}>
             Apply Filters

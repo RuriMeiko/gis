@@ -7,6 +7,11 @@ export const sql = neon(process.env.DATABASE_URL!, {
   maxRetries: 3,
   connectionTimeoutMillis: 5000,
 })
+async function test() {
+  const result = await sql`SELECT * FROM users LIMIT 10`
+  console.log(result)
+}
+test()
 
 // Simple function to test the database connection
 export async function checkDatabaseConnection() {

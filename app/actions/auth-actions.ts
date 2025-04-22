@@ -3,21 +3,23 @@
 import { registerUser, loginUser, logoutUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 
-export async function registerAction({
-  name,
-  email,
-  password,
-}: {
-  name: string
-  email: string
-  password: string
+// Update the registerAction function to accept location data
+export async function registerAction(data: { 
+  name: string; 
+  email: string; 
+  password: string;
+  location?: { lat: number; lon: number };
 }) {
   try {
-    await registerUser(name, email, password)
-    return { success: true }
+    const { name, email, password, location } = data
+    
+    // Call the registerUser function with location data
+    const userId = await registerUser(name, email, password, location)
+    
+    return { success: true, userId }
   } catch (error) {
-    console.error("Registration error:", error)
-    return { success: false, error: error instanceof Error ? error.message : "Registration failed" }
+    console.error("Registration action error:", error)
+    throw error
   }
 }
 

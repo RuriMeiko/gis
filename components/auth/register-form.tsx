@@ -10,6 +10,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input"
 import { registerAction } from "@/app/actions/auth-actions"
 import { useToast } from "@/hooks/use-toast"
+import { LocationPicker } from "@/components/auth/location-picker"
+import { Separator } from "@/components/ui/separator"
 
 const formSchema = z
   .object({
@@ -31,6 +33,7 @@ const formSchema = z
 
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false)
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -44,6 +47,10 @@ export function RegisterForm() {
     },
   })
 
+  const handleLocationSelect = (location: { lat: number; lon: number }) => {
+    setUserLocation(location)
+  }
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
@@ -51,6 +58,7 @@ export function RegisterForm() {
         name: values.name,
         email: values.email,
         password: values.password,
+        location: userLocation || undefined,
       })
 
       toast({
@@ -125,6 +133,11 @@ export function RegisterForm() {
             </FormItem>
           )}
         />
+        
+        <Separator className="my-4" />
+        
+        <LocationPicker onLocationSelect={handleLocationSelect} />
+        
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? "Creating account..." : "Create account"}
         </Button>

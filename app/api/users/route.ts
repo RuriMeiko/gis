@@ -33,8 +33,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const query = searchParams.get("query") || ""
     const interests = searchParams.getAll("interest") || []
+    const gender = searchParams.get("gender") || ""
+    const minAge = parseInt(searchParams.get("minAge") || "0")
+    const maxAge = parseInt(searchParams.get("maxAge") || "100")
 
-    console.log("Fetching users with query:", query, "interests:", interests)
+    console.log("Fetching users with query:", query, "interests:", interests, "gender:", gender, "minAge:", minAge, "maxAge:", maxAge)
 
     // Use parameterized queries to prevent SQL injection
     let queryText = `
@@ -56,7 +59,7 @@ export async function GET(request: Request) {
         user_interests ui ON u.id = ui.user_id
     `
 
-    // Add WHERE clause if search query or interests are provided
+    // Add WHERE clause if search query, interests, or other filters are provided
     const conditions = []
     const params = []
     let paramIndex = 1
@@ -70,6 +73,24 @@ export async function GET(request: Request) {
     if (interests.length > 0) {
       conditions.push(`ui.interest = ANY($${paramIndex}::text[])`)
       params.push(interests)
+      paramIndex++
+    }
+
+    if (gender) {
+      conditions.push(`u.gender = $${paramIndex}`)
+      params.push(gender)
+      paramIndex++
+    }
+
+    if (minAge > 0) {
+      conditions.push(`u.age >= $${paramIndex}`)
+      params.push(minAge)
+      paramIndex++
+    }
+
+    if (maxAge < 100) {
+      conditions.push(`u.age <= $${paramIndex}`)
+      params.push(maxAge)
       paramIndex++
     }
 
@@ -96,15 +117,12 @@ export async function GET(request: Request) {
     console.log("Executing SQL query:", queryText, "with params:", params)
 
     // Execute the query with a timeout
-    const result = (await Promise.race([
-      sql.query(queryText, params),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Database query timeout")), 5000)),
-    ])) as any
+    const result = await sql.query(queryText, params)
 
-    console.log(`Query returned ${result?.rows?.length || 0} users`)
+    console.log(`Query returned ${result?.length || 0} users`)
 
     // Ensure we always return an array, even if empty
-    return NextResponse.json({ users: result?.rows || [] })
+    return NextResponse.json({ users: result || [] })
   } catch (error) {
     console.error("Error fetching users:", error)
 
@@ -119,3 +137,4 @@ export async function GET(request: Request) {
     )
   }
 }
+

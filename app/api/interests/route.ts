@@ -1,30 +1,24 @@
-import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
+import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
-    // Get unique interests from user_interests table
-    console.log("Fetching interests from database...")
-    const result = await sql`
-      SELECT DISTINCT interest 
+    // Query to get unique interests from user_interests table
+    const interests = await sql`
+      SELECT DISTINCT interest_name 
       FROM user_interests 
-      ORDER BY interest
+      ORDER BY interest_name ASC
     `
 
-    console.log("Interests query result:", result)
+    // Extract interest names from the result
+    const interestNames = interests.map((row: any) => row.interest_name)
 
-    // Check if result.rows exists before mapping
-    if (!result || !result.rows) {
-      console.warn("SQL result doesn't contain rows property:", result)
-      return NextResponse.json({ interests: [] })
-    }
-
-    const interests = result.rows.map((row) => row.interest)
-
-    return NextResponse.json({ interests })
+    return NextResponse.json({ interests: interestNames })
   } catch (error) {
     console.error("Error fetching interests:", error)
-    // Return an empty array instead of an error to avoid breaking the client
-    return NextResponse.json({ interests: [] }, { status: 200 })
+    return NextResponse.json(
+      { error: "Failed to fetch interests" },
+      { status: 500 }
+    )
   }
 }

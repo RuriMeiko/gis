@@ -1,25 +1,37 @@
 import type { User } from "@/types/user"
 
-export async function fetchUsers(query?: string, interests?: string[]): Promise<User[]> {
+export interface UserFilters {
+  gender?: string
+  minAge?: number
+  maxAge?: number
+  interests?: string[]
+}
+
+/**
+ * Gọi API /api/users để lấy danh sách người dùng theo bộ lọc
+ */
+export async function fetchUsers(filters?: UserFilters): Promise<User[]> {
   try {
-    // Build the URL with query parameters
     const url = new URL("/api/users", window.location.origin)
 
-    if (query) {
-      url.searchParams.append("query", query)
+    // Thêm bộ lọc vào URL query
+    if (filters?.gender) {
+      url.searchParams.append("gender", filters.gender)
     }
 
-    if (interests && interests.length > 0) {
-      interests.forEach((interest) => {
-        url.searchParams.append("interest", interest)
-      })
+    if (filters?.minAge !== undefined) {
+      url.searchParams.append("minAge", String(filters.minAge))
     }
+
+    if (filters?.maxAge !== undefined) {
+      url.searchParams.append("maxAge", String(filters.maxAge))
+    }
+
 
     console.log("Fetching users from:", url.toString())
 
-    // Add a timeout to the fetch request
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
 
     const response = await fetch(url.toString(), {
       signal: controller.signal,
@@ -31,37 +43,29 @@ export async function fetchUsers(query?: string, interests?: string[]): Promise<
     clearTimeout(timeoutId)
 
     if (!response.ok) {
-      // Check if response is rate limited
       if (response.status === 429) {
-        console.warn("Rate limit exceeded when fetching users")
+        console.warn("Rate limit exceeded")
         return []
       }
-      throw new Error(`Error fetching users: ${response.status} ${response.statusText}`)
+      throw new Error(`HTTP ${response.status} - ${response.statusText}`)
     }
 
-    // Check if response is valid JSON
     const contentType = response.headers.get("content-type")
-    if (!contentType || !contentType.includes("application/json")) {
-      console.error("Invalid response content type:", contentType)
+    if (!contentType?.includes("application/json")) {
       const text = await response.text()
-      console.error("Response text:", text.substring(0, 200) + (text.length > 200 ? "..." : ""))
+      console.warn("Invalid content-type. Response text:", text.slice(0, 200))
       return []
     }
 
     const data = await response.json()
 
-    // Check if data.users exists before mapping
     if (!data || !data.users) {
-      console.warn("API response doesn't contain users data:", data)
+      console.warn("No users found in API response", data)
       return []
     }
-
-    // Log any errors returned from the API
-    if (data.error) {
-      console.error("API returned error:", data.error)
-    }
-
-    return data.users.map((user: any) => ({
+    console.log("Fetched users:", data.users);
+    
+    return data.users.map((user: any): User => ({
       id: user.id,
       name: user.name,
       email: user.email,
@@ -69,17 +73,18 @@ export async function fetchUsers(query?: string, interests?: string[]): Promise<
       avatar: user.avatar_url || "/placeholder.svg",
       lat: Number.parseFloat(user.latitude) || 0,
       lon: Number.parseFloat(user.longitude) || 0,
+      gender: user.gender || "",
+      age: user.age || 0,
       location: user.location_name || "",
       interests: user.interests || [],
     }))
   } catch (error) {
-    // Handle abort errors gracefully
     if (error instanceof DOMException && error.name === "AbortError") {
-      console.warn("Fetch request for users was aborted due to timeout")
+      console.warn("Fetch aborted due to timeout")
       return []
     }
 
-    console.error("Error fetching users:", error)
+    console.error("Fetch users error:", error)
     return []
   }
 }
