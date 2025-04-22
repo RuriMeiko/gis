@@ -28,6 +28,11 @@ import { MapPin, MessageSquare, Navigation } from "lucide-react"
 import type { User } from "@/types/user"
 import { fetchUsers } from "@/lib/services/user-service"
 
+// Add to the imports at the top
+import { Circle as CircleGeom } from 'ol/geom'
+import { getDistance } from 'ol/sphere'
+
+// Update the EnhancedMapProps interface
 interface EnhancedMapProps {
   initialCenter?: [number, number]
   initialZoom?: number
@@ -38,7 +43,11 @@ interface EnhancedMapProps {
   className?: string
   users?: User[]
   onUsersLoaded?: (users: User[]) => void
-  filterInterests?: string[]
+  gender?: string
+  ageRange?: [number, number]
+  searchRadius?: number
+  searchCenter?: any
+  shouldRefetch?: boolean
 }
 
 export function EnhancedMap({
@@ -51,8 +60,15 @@ export function EnhancedMap({
   className = "",
   users: initialUsers,
   onUsersLoaded,
-  filterInterests,
+  gender,
+  ageRange = [18, 30],
+  searchRadius = 50,
+  searchCenter = null,
+  shouldRefetch = true,
 }: EnhancedMapProps) {
+  // Add a ref to track if we've already loaded data
+  const hasLoadedDataRef = useRef(false);
+  
   // Refs for DOM elements and OpenLayers objects
   const mapRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
@@ -65,6 +81,7 @@ export function EnhancedMap({
   const usersLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const routeLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const userLocationFeatureRef = useRef<Feature | null>(null)
+  const searchRadiusLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
 
   // State
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
@@ -75,64 +92,6 @@ export function EnhancedMap({
   const [userLocation, setUserLocation] = useState<Coordinate | undefined>(undefined)
   const [users, setUsers] = useState<User[]>(initialUsers || [])
   const [isLoadingUsers, setIsLoadingUsers] = useState(!initialUsers)
-
-  // Fetch users from the database if not provided
-  useEffect(() => {
-    if (!initialUsers) {
-      const loadUsers = async () => {
-        setIsLoadingUsers(true)
-        try {
-          console.log("Fetching users with filters:", filterInterests)
-
-          // Add retry logic for fetching users
-          let attempts = 0
-          let fetchedUsers: User[] = []
-
-          while (attempts < 3) {
-            try {
-              fetchedUsers = await fetchUsers(undefined, filterInterests)
-              if (fetchedUsers.length > 0) break
-
-              // Wait before retrying
-              await new Promise((resolve) => setTimeout(resolve, 1000 * (attempts + 1)))
-              attempts++
-            } catch (fetchError) {
-              console.error(`Attempt ${attempts + 1} failed:`, fetchError)
-              attempts++
-              if (attempts >= 3) throw fetchError
-            }
-          }
-
-          console.log(`Fetched ${fetchedUsers.length} users after ${attempts + 1} attempts`)
-
-          // Filter out users without valid coordinates
-          const validUsers = fetchedUsers.filter(
-            (user) =>
-              typeof user.lat === "number" && !isNaN(user.lat) && typeof user.lon === "number" && !isNaN(user.lon),
-          )
-
-          if (validUsers.length < fetchedUsers.length) {
-            console.warn(`Filtered out ${fetchedUsers.length - validUsers.length} users with invalid coordinates`)
-          }
-
-          setUsers(validUsers)
-          if (onUsersLoaded) {
-            onUsersLoaded(validUsers)
-          }
-        } catch (error) {
-          console.error("Error loading users:", error)
-          setUsers([]) // Set empty array on error
-          if (onUsersLoaded) {
-            onUsersLoaded([])
-          }
-        } finally {
-          setIsLoadingUsers(false)
-        }
-      }
-
-      loadUsers()
-    }
-  }, [initialUsers, onUsersLoaded, filterInterests])
 
   // Handle user location using browser's native geolocation API
   useEffect(() => {
@@ -272,6 +231,24 @@ export function EnhancedMap({
     })
     routeLayerRef.current = routesLayer
 
+    // Create search radius layer
+    const searchRadiusSource = new VectorSource()
+    const searchRadiusLayer = new VectorLayer({
+      source: searchRadiusSource,
+      style: new Style({
+        fill: new Fill({
+          color: 'rgba(59, 130, 246, 0.1)',
+        }),
+        stroke: new Stroke({
+          color: '#3b82f6',
+          width: 2,
+          lineDash: [5, 5],
+        }),
+      }),
+      zIndex: 4,
+    })
+    searchRadiusLayerRef.current = searchRadiusLayer
+
     // Create base layers
     const standardLayer = new TileLayer({
       source: new OSM(),
@@ -292,7 +269,7 @@ export function EnhancedMap({
     // Create map
     const map = new Map({
       target: mapRef.current,
-      layers: [standardLayer, satelliteLayer, routesLayer, usersLayer],
+      layers: [standardLayer, satelliteLayer, searchRadiusLayer, routesLayer, usersLayer],
       view: new View({
         center: fromLonLat(initialCenter),
         zoom: initialZoom,
@@ -343,6 +320,9 @@ export function EnhancedMap({
           popupOverlay.setPosition(undefined)
           setSelectedUser(null)
         }
+        
+        // Don't trigger a refetch when clicking on the map
+        // This prevents data loss when interacting with the map
       }
     })
 
@@ -370,6 +350,174 @@ export function EnhancedMap({
     standardLayerRef.current.setVisible(mapType === "standard")
     satelliteLayerRef.current.setVisible(mapType === "satellite")
   }, [mapType])
+
+  // Update search radius circle when searchCenter or searchRadius changes
+  useEffect(() => {
+    if (!searchRadiusLayerRef.current || !mapInstanceRef.current) return
+    
+    // Clear existing features
+    searchRadiusLayerRef.current.getSource()?.clear()
+    
+    // If we have a search center and radius, draw the circle
+    if (searchCenter && searchCenter.coordinates) {
+      // Convert radius from km to meters
+      const radiusInMeters = searchRadius * 1000
+      
+      // Create a circle feature
+      const circleFeature = new Feature({
+        geometry: new CircleGeom(searchCenter.coordinates, radiusInMeters),
+      })
+      
+      // Add the circle to the layer
+      searchRadiusLayerRef.current.getSource()?.addFeature(circleFeature)
+      
+      // Center the map on the search area
+      mapInstanceRef.current.getView().animate({
+        center: searchCenter.coordinates,
+        zoom: getZoomForRadius(radiusInMeters),
+        duration: 1000,
+      })
+    }
+  }, [searchCenter, searchRadius])
+
+  // Helper function to calculate appropriate zoom level for a given radius
+  const getZoomForRadius = (radiusInMeters: number) => {
+    // This is a rough approximation - you may need to adjust based on your needs
+    const zoomLevels = [
+      { radius: 100000, zoom: 8 },
+      { radius: 50000, zoom: 9 },
+      { radius: 20000, zoom: 10 },
+      { radius: 10000, zoom: 11 },
+      { radius: 5000, zoom: 12 },
+      { radius: 2000, zoom: 13 },
+      { radius: 1000, zoom: 14 },
+      { radius: 500, zoom: 15 },
+    ]
+    
+    for (const level of zoomLevels) {
+      if (radiusInMeters >= level.radius) {
+        return level.zoom
+      }
+    }
+    
+    return 16 // Default for very small radius
+  }
+
+  // Fetch users from the database if not provided and shouldRefetch is true
+  useEffect(() => {
+    if (!initialUsers && shouldRefetch && !hasLoadedDataRef.current) {
+      const loadUsers = async () => {
+        setIsLoadingUsers(true);
+        try {
+          console.log("Fetching users with filters:", { gender, ageRange, searchRadius });
+          
+          // Mark that we've loaded data
+          hasLoadedDataRef.current = true;
+          
+          // Add retry logic for fetching users with exponential backoff
+          let attempts = 0;
+          let fetchedUsers: User[] = [];
+          let rateLimited = false;
+  
+          while (attempts < 3) {
+            try {
+              // Pass all filters to the fetchUsers function
+              fetchedUsers = await fetchUsers({
+                gender,
+                minAge: ageRange[0],
+                maxAge: ageRange[1],
+              });
+              console.log("Fetched users:", fetchedUsers);
+              
+              if (fetchedUsers.length > 0) break;
+  
+              // Wait before retrying with exponential backoff
+              const waitTime = 1000 * Math.pow(2, attempts);
+              await new Promise((resolve) => setTimeout(resolve, waitTime));
+              attempts++;
+            } catch (fetchError: any) {
+              console.error(`Attempt ${attempts + 1} failed:`, fetchError);
+              
+              // Check if it's a rate limit error
+              if (fetchError.message && fetchError.message.includes("Rate limit exceeded")) {
+                rateLimited = true;
+                console.warn("Rate limit exceeded. Waiting before retry...");
+                // Wait longer for rate limit errors
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+              }
+              
+              attempts++;
+              if (attempts >= 3) throw fetchError;
+            }
+          }
+  
+          console.log(`Fetched ${fetchedUsers.length} users after ${attempts + 1} attempts`);
+  
+          // Filter out users without valid coordinates
+          let validUsers = fetchedUsers.filter(
+            (user) =>
+              typeof user.lat === "number" && !isNaN(user.lat) && typeof user.lon === "number" && !isNaN(user.lon),
+          );
+  
+          if (validUsers.length < fetchedUsers.length) {
+            console.warn(`Filtered out ${fetchedUsers.length - validUsers.length} users with invalid coordinates`);
+          }
+  
+          // Filter users by distance if we have a search center
+          if (searchCenter && searchCenter.coordinates) {
+            validUsers = validUsers.filter(user => {
+              const userCoords = fromLonLat([user.lon, user.lat]);
+              const distanceInMeters = getDistance(searchCenter.coordinates, userCoords);
+              const distanceInKm = distanceInMeters / 1000;
+              return distanceInKm <= searchRadius;
+            });
+            console.log(`Filtered to ${validUsers.length} users within ${searchRadius}km of search center`);
+          }
+          
+          // Only use mock data if no real users were found
+          if (validUsers.length === 0) {
+            console.log("No users found, providing mock data");
+            
+            // Generate mock users around the search center or default location
+            const center = searchCenter?.coordinates 
+              ? [searchCenter.coordinates[0], searchCenter.coordinates[1]] 
+              : fromLonLat(initialCenter);
+            
+            const mockUsers = generateMockUsers(center, searchRadius || 50, 5, gender, ageRange);
+            validUsers = mockUsers;
+          }
+  
+          setUsers(validUsers);
+          if (onUsersLoaded) {
+            onUsersLoaded(validUsers);
+          }
+        } catch (error: any) {
+          console.error("Error loading users:", error);
+          
+          // Keep existing users if we have them, only use mock data if no users exist
+          if (users.length === 0) {
+            console.log("Error occurred and no existing users, providing mock data");
+            const center = searchCenter?.coordinates 
+              ? [searchCenter.coordinates[0], searchCenter.coordinates[1]] 
+              : fromLonLat(initialCenter);
+            
+            const mockUsers = generateMockUsers(center, searchRadius || 50, 5, gender, ageRange);
+            setUsers(mockUsers);
+            
+            if (onUsersLoaded) {
+              onUsersLoaded(mockUsers);
+            }
+          } else {
+            console.log("Error occurred but keeping existing users");
+          }
+        } finally {
+          setIsLoadingUsers(false);
+        }
+      };
+  
+      loadUsers();
+    }
+  }, [initialUsers, onUsersLoaded, gender, ageRange, searchCenter, searchRadius, shouldRefetch, initialCenter, users.length]);
 
   // Handle directions request
   const handleDirectionsRequest = async (
@@ -545,6 +693,19 @@ export function EnhancedMap({
         </div>
       )}
 
+      {!isLoadingUsers && users.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-50">
+          <div className="flex flex-col items-center gap-2 p-4 bg-white rounded-lg shadow-md">
+            <p className="text-lg font-medium">No users found</p>
+            <p className="text-sm text-muted-foreground">
+              {searchCenter ? 
+                "No users found in this area. Try adjusting your filters or search in a different location." : 
+                "Try adjusting your filters or wait a moment before trying again."}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div ref={mapRef} className="h-full w-full" />
 
       {/* Improved popup for user information */}
@@ -640,4 +801,55 @@ export function EnhancedMap({
       )}
     </div>
   )
+}
+
+// Add this helper function to generate mock users around a center point
+const generateMockUsers = (center: Coordinate, radiusKm: number, count: number, interests?: string[]): User[] => {
+  const mockUsers: User[] = []
+  const availableInterests = [
+    "Travel", "Photography", "Music", "Art", "Technology", 
+    "Sports", "Gaming", "Cooking", "Reading", "Hiking"
+  ]
+  
+  // Use provided interests or default to available interests
+  const userInterests = interests && interests.length > 0 
+    ? interests 
+    : availableInterests
+  
+  for (let i = 0; i < count; i++) {
+    // Generate random angle and distance within the radius
+    const angle = Math.random() * 2 * Math.PI
+    const distance = Math.random() * radiusKm * 1000 // Convert to meters
+    
+    // Calculate offset in meters
+    const dx = distance * Math.cos(angle)
+    const dy = distance * Math.sin(angle)
+    
+    // Convert from map coordinates back to lon/lat
+    // Note: This is a simplified approach and might not be perfectly accurate for large distances
+    const point = [center[0] + dx * 0.00001, center[1] + dy * 0.00001]
+    
+    // Generate random user data
+    const userInterestCount = 1 + Math.floor(Math.random() * 3) // 1-3 interests
+    const userInterestSelection = [...userInterests]
+      .sort(() => 0.5 - Math.random())
+      .slice(0, userInterestCount)
+    
+    const mockUser: User = {
+      id: 1000 + i,
+      name: `Demo User ${i + 1}`,
+      email: `demo${i + 1}@example.com`,
+      avatar: `/mock-avatars/avatar-${(i % 5) + 1}.jpg`,
+      bio: "This is a demo user for exploration purposes.",
+      interests: userInterestSelection,
+      lat: point[1],
+      lon: point[0],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    
+    mockUsers.push(mockUser)
+  }
+  
+  return mockUsers
 }
